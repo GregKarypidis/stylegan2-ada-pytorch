@@ -24,7 +24,7 @@ except ImportError:
 class Dataset(torch.utils.data.Dataset):
     def __init__(self,
         name,                   # Name of the dataset.
-        raw_shape,              # Shape of the raw image data (NCHW).
+        raw_shape,              # Shape of the raw image data (NCHW). (num of images, channels, height, width)
         max_size    = None,     # Artificially limit the size of the dataset. None = no limit. Applied before xflip.
         use_labels  = False,    # Enable conditioning labels? False = label dimension is zero.
         xflip       = False,    # Artificially double the size of the dataset via x-flips. Applied after max_size.
@@ -36,14 +36,16 @@ class Dataset(torch.utils.data.Dataset):
         self._raw_labels = None
         self._label_shape = None
 
-        # Apply max_size.
+        # Apply max_size
         self._raw_idx = np.arange(self._raw_shape[0], dtype=np.int64)
+        # If max_size is set to True
         if (max_size is not None) and (self._raw_idx.size > max_size):
             np.random.RandomState(random_seed).shuffle(self._raw_idx)
             self._raw_idx = np.sort(self._raw_idx[:max_size])
 
         # Apply xflip.
         self._xflip = np.zeros(self._raw_idx.size, dtype=np.uint8)
+        # If xflip is set to True
         if xflip:
             self._raw_idx = np.tile(self._raw_idx, 2)
             self._xflip = np.concatenate([self._xflip, np.ones_like(self._xflip)])
@@ -58,7 +60,7 @@ class Dataset(torch.utils.data.Dataset):
             assert self._raw_labels.dtype in [np.float32, np.int64]
             if self._raw_labels.dtype == np.int64:
                 assert self._raw_labels.ndim == 1
-                assert np.all(self._raw_labels >= 0)
+                assert np.all(self._raw_labels >= 0)    
         return self._raw_labels
 
     def close(self): # to be overridden by subclass

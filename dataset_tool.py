@@ -48,10 +48,12 @@ def is_image_ext(fname: Union[str, Path]) -> bool:
     return f'.{ext}' in PIL.Image.EXTENSION # type: ignore
 
 #----------------------------------------------------------------------------
+# csv_read() return lists with image ids
+#     filenames = [f'{myisicfolder}/item.jpg' for item in mylist]
 
 def open_image_folder(source_dir, *, max_images: Optional[int]):
     input_images = [str(f) for f in sorted(Path(source_dir).rglob('*')) if is_image_ext(f) and os.path.isfile(f)]
-
+    
     # Load labels.
     labels = {}
     meta_fname = os.path.join(source_dir, 'dataset.json')
@@ -250,11 +252,13 @@ def make_transform(
 #----------------------------------------------------------------------------
 
 def open_dataset(source, *, max_images: Optional[int]):
+    # If source is a directory
     if os.path.isdir(source):
         if source.rstrip('/').endswith('_lmdb'):
             return open_lmdb(source, max_images=max_images)
         else:
             return open_image_folder(source, max_images=max_images)
+    # If source is a file
     elif os.path.isfile(source):
         if os.path.basename(source) == 'cifar-10-python.tar.gz':
             return open_cifar10(source, max_images=max_images)
