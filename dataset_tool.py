@@ -262,10 +262,13 @@ def open_dataset(source, *, max_images: Optional[int]):
             return open_image_folder(source, max_images=max_images)
     # If source is a file
     elif os.path.isfile(source):
+        # If the filename is cifar-10-python.tar.gz
         if os.path.basename(source) == 'cifar-10-python.tar.gz':
             return open_cifar10(source, max_images=max_images)
+        # If the filename is train-images-idx3-ubyte.gz
         elif os.path.basename(source) == 'train-images-idx3-ubyte.gz':
             return open_mnist(source, max_images=max_images)
+        # If the filename is a zip archive
         elif file_ext(source) == 'zip':
             return open_image_zip(source, max_images=max_images)
         else:
