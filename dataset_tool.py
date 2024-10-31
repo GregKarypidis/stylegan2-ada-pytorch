@@ -254,8 +254,10 @@ def make_transform(
 def open_dataset(source, *, max_images: Optional[int]):
     # If source is a directory
     if os.path.isdir(source):
+        # If source is an LMDB directory
         if source.rstrip('/').endswith('_lmdb'):
             return open_lmdb(source, max_images=max_images)
+        # If source is an image folder
         else:
             return open_image_folder(source, max_images=max_images)
     # If source is a file
