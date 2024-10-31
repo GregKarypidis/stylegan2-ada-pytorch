@@ -51,8 +51,21 @@ def is_image_ext(fname: Union[str, Path]) -> bool:
 # csv_read() return lists with image ids
 #     filenames = [f'{myisicfolder}/item.jpg' for item in mylist]
 
+# Custom code - Dataset preparation ############################################################################################################
+df = pd.read_csv('list.csv')
+
+for item in df['item']:
+    filenames = [f'{myisicfolder}/{item}.jpg']
+
+################################################################################################################################################
+
 def open_image_folder(source_dir, *, max_images: Optional[int]):
-    input_images = [str(f) for f in sorted(Path(source_dir).rglob('*')) if is_image_ext(f) and os.path.isfile(f)]
+    # 
+    input_images = []
+    for f in sorted(Path(source_dir).rglob('*')):
+        if is_image_ext(f) and os.path.isfile(f):
+            input_images.append(str(f))
+    #input_images = [str(f) for f in sorted(Path(source_dir).rglob('*')) if is_image_ext(f) and os.path.isfile(f)]
     
     # Load labels.
     labels = {}
@@ -254,20 +267,27 @@ def make_transform(
 def open_dataset(source, *, max_images: Optional[int]):
     # If source is a directory
     if os.path.isdir(source):
+        # If lmdb file
         if source.rstrip('/').endswith('_lmdb'):
             return open_lmdb(source, max_images=max_images)
+        # If image folder
         else:
             return open_image_folder(source, max_images=max_images)
     # If source is a file
     elif os.path.isfile(source):
+        # If default_dataset
         if os.path.basename(source) == 'cifar-10-python.tar.gz':
             return open_cifar10(source, max_images=max_images)
+        # If default_dataset
         elif os.path.basename(source) == 'train-images-idx3-ubyte.gz':
             return open_mnist(source, max_images=max_images)
+        # If zip file
         elif file_ext(source) == 'zip':
             return open_image_zip(source, max_images=max_images)
+        # Unknown
         else:
             assert False, 'unknown archive type'
+    # Error
     else:
         error(f'Missing input file or directory: {source}')
 
