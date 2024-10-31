@@ -267,14 +267,22 @@ def make_transform(
 def open_dataset(source, *, max_images: Optional[int]):
     # If source is a directory
     if os.path.isdir(source):
+<<<<<<< HEAD
         # If lmdb file
         if source.rstrip('/').endswith('_lmdb'):
             return open_lmdb(source, max_images=max_images)
         # If image folder
+=======
+        # If source is an LMDB directory
+        if source.rstrip('/').endswith('_lmdb'):
+            return open_lmdb(source, max_images=max_images)
+        # If source is an image folder
+>>>>>>> e1f1e098761bb1d7d70bba0d68df8400d05d9f33
         else:
             return open_image_folder(source, max_images=max_images)
     # If source is a file
     elif os.path.isfile(source):
+<<<<<<< HEAD
         # If default_dataset
         if os.path.basename(source) == 'cifar-10-python.tar.gz':
             return open_cifar10(source, max_images=max_images)
@@ -282,6 +290,15 @@ def open_dataset(source, *, max_images: Optional[int]):
         elif os.path.basename(source) == 'train-images-idx3-ubyte.gz':
             return open_mnist(source, max_images=max_images)
         # If zip file
+=======
+        # If the filename is cifar-10-python.tar.gz
+        if os.path.basename(source) == 'cifar-10-python.tar.gz':
+            return open_cifar10(source, max_images=max_images)
+        # If the filename is train-images-idx3-ubyte.gz
+        elif os.path.basename(source) == 'train-images-idx3-ubyte.gz':
+            return open_mnist(source, max_images=max_images)
+        # If the filename is a zip archive
+>>>>>>> e1f1e098761bb1d7d70bba0d68df8400d05d9f33
         elif file_ext(source) == 'zip':
             return open_image_zip(source, max_images=max_images)
         # Unknown
