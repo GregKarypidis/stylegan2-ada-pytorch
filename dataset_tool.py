@@ -155,34 +155,32 @@ def open_image_folder_v2(source_dir, *, max_images: Optional[int]):
 #----------------------------------------------------------------------------
 def open_image_folder_v3(source_dir, *, max_images: Optional[int]):
   
-    # Label Handler ##########################################################################################################################
-    labels = {}
-
     # Change the name of the CSV file
     meta_fname = os.path.join(source_dir, 'dermamnist_224.csv')
     # Read CSV file from the directory
     df = pd.read_csv(meta_fname)
-    ##########################################################################################################################################
 
-    # print(labels)
-    # exit(0)
     all_image_files=df.iloc[:, 1]
     all_labels = df.iloc[:, 2]
     length = len(all_image_files)
     max_idx = maybe_min(length, max_images)
 
+    # # Check the labels
+    # print("All unique labels \n", all_labels.unique(), "\n")
+    # print("Label counts \n", all_labels.value_counts())
+    # exit(0)
 
     def iterate_images():
         for idx in range(len(all_image_files)):
-            full_path = f'{source_dir}/dermamnist_224/{all_image_files[idx]}'
+            if file_ext(all_image_files[idx]) == 'csv':
+                continue
+            full_path = f'{source_dir}/{all_image_files[idx]}'
             img = np.array(PIL.Image.open(full_path))
             label_value = all_labels[idx]
             label_value = int(label_value)
             
             yield dict(img=img, label=label_value)
             
-
-            # yield dict(img=img, label=labels.get(arch_fname))
             if idx >= max_idx-1:
                 break
     return max_idx, iterate_images()
@@ -362,7 +360,7 @@ def make_transform(
 #----------------------------------------------------------------------------
 
 def open_dataset(source, *, max_images: Optional[int]):
-    print(type(source), os.path.isdir(source))
+    #print(type(source), os.path.isdir(source))
     # If source is a directory
     if os.path.isdir(source):
         # If lmdb file
