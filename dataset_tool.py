@@ -157,110 +157,6 @@ def open_image_folder_v3(source_dir, *, max_images: Optional[int]):
   
     # Label Handler ##########################################################################################################################
     labels = {}
-    # Change the name of the CSV file
-    meta_fname = os.path.join(source_dir, 'dermamnist_224.csv')
-    # Read CSV file from the directory
-    df = pd.read_csv(meta_fname)
-    ##########################################################################################################################################
-
-    all_image_files = df.iloc[:, 1]
-    all_labels = df.iloc[:, 2]
-    length = len(all_image_files)
-    max_idx = maybe_min(length, max_images)
-
-    def iterate_images():
-        for idx in range(len(all_image_files)):
-            full_path = f'{source_dir}/dermamnist_224/{all_image_files[idx]}'
-            img = np.array(PIL.Image.open(full_path))
-            label_value = all_labels[idx]
-            label_value = int(label_value)
-            
-            yield dict(img=img, label=label_value)
-            
-            # yield dict(img=img, label=labels.get(arch_fname))
-            if idx >= max_idx-1:
-                break
-    return max_idx, iterate_images()
-
-#----------------------------------------------------------------------------
-
-def open_image_folder_v2(source_dir, *, max_images: Optional[int]):
-    input_images = []
-    for f in sorted(Path(source_dir).rglob('*')):
-        if is_image_ext(f) and os.path.isfile(f):
-            input_images.append(str(f))
-    #input_images = [str(f) for f in sorted(Path(source_dir).rglob('*')) if is_image_ext(f) and os.path.isfile(f)]
-    
-    # Load labels.
-    # labels = {}
-    # meta_fname = os.path.join(source_dir, 'dataset.json')
-    # if os.path.isfile(meta_fname):
-    #     with open(meta_fname, 'r') as file:
-    #         labels = json.load(file)['labels']
-    #         if labels is not None:
-    #             labels = { x[0]: x[1] for x in labels }
-    #         else:
-    #             labels = {}
-
-    # Label Handler ##########################################################################################################################
-    labels = {}
-
-    # Change the name of the CSV file
-    meta_fname = os.path.join(source_dir, 'dermamnist_224.csv')
-    # Read CSV file from the directory
-    df = pd.read_csv(meta_fname)
-
-    # # Create a dictionary with the unique labels
-    # unique_labels = df.iloc[:, 2].unique()
-    # label_int = {}
-    # # Sort the unique labels alphabeticaly
-    # unique_labels = sorted(unique_labels)
-    
-    # TODO: uncomment this for HAM10000 dataset
-    # for idx, label in enumerate(unique_labels, start=0):
-    #     label_int[label] = idx
-
-
-    for image, label in zip(df.iloc[:, 1], df.iloc[:, 2]):
-        # Remove condition if all labels are used
-        # if label == 'mel':
-        # TODO: uncomment this for HAM10000 dataset
-        # labels[image] = label_int[label]
-        labels[image] = label
-    ##########################################################################################################################################
-
-    max_idx = maybe_min(len(input_images), max_images)
-    # print(labels)
-    # exit(0)
-
-    def iterate_images():
-        for idx, fname in enumerate(input_images):
-            arch_fname = os.path.relpath(fname, source_dir)
-            arch_fname = arch_fname.replace('\\', '/')
-            img = np.array(PIL.Image.open(fname))
-            # print(fname)
-            dict_key = os.path.basename(fname)
-            # print(dict_key, labels.get(dict_key) )
-            # print(type(labels.get(dict_key) ))
-
-            # print(img.shape, labels.get(dict_key))
-            if labels.get(dict_key) is None:
-                print(f'{idx} {fname}')
-                exit(0)
-            yield dict(img=img, label=labels.get(dict_key))
-            
-
-            # yield dict(img=img, label=labels.get(arch_fname))
-            if idx >= max_idx-1:
-                break
-    return max_idx, iterate_images()
-
-#----------------------------------------------------------------------------
-
-def open_image_folder_v3(source_dir, *, max_images: Optional[int]):
-  
-    # Label Handler ##########################################################################################################################
-    labels = {}
 
     # Change the name of the CSV file
     meta_fname = os.path.join(source_dir, 'dermamnist_224.csv')
@@ -292,7 +188,6 @@ def open_image_folder_v3(source_dir, *, max_images: Optional[int]):
     return max_idx, iterate_images()
 
 #----------------------------------------------------------------------------
-
 
 def open_image_zip(source, *, max_images: Optional[int]):
     with zipfile.ZipFile(source, mode='r') as z:
@@ -660,7 +555,10 @@ def convert_dataset(
         img.save(image_bits, format='png', compress_level=0, optimize=False)
         save_bytes(os.path.join(archive_root_dir, archive_fname), image_bits.getbuffer())
         labels.append([archive_fname, image['label']] if image['label'] is not None else None)
-
+    
+    for i, x in enumerate(labels): 
+        if x is None:
+            print(f'{i} Warning: Some images are missing labels.  The dataset will not contain class labels.')
     metadata = {
         'labels': labels if all(x is not None for x in labels) else None
     }
