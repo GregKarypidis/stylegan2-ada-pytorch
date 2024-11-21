@@ -145,6 +145,8 @@ class Dataset(torch.utils.data.Dataset):
 
     @property
     def has_labels(self):
+        #print(self.label_shape)
+        #exit(0)
         return any(x != 0 for x in self.label_shape)
 
     @property

@@ -23,6 +23,10 @@ import numpy as np
 import PIL.Image
 from tqdm import tqdm
 
+# Custom libraries ###########################################################################################################################
+import pandas as pd
+##############################################################################################################################################
+
 #----------------------------------------------------------------------------
 
 def error(msg):
@@ -48,25 +52,10 @@ def is_image_ext(fname: Union[str, Path]) -> bool:
     return f'.{ext}' in PIL.Image.EXTENSION # type: ignore
 
 #----------------------------------------------------------------------------
-# csv_read() return lists with image ids
-#     filenames = [f'{myisicfolder}/item.jpg' for item in mylist]
-
-# Custom code - Dataset preparation ############################################################################################################
-df = pd.read_csv('list.csv')
-
-for item in df['item']:
-    filenames = [f'{myisicfolder}/{item}.jpg']
-
-################################################################################################################################################
 
 def open_image_folder(source_dir, *, max_images: Optional[int]):
-    # 
-    input_images = []
-    for f in sorted(Path(source_dir).rglob('*')):
-        if is_image_ext(f) and os.path.isfile(f):
-            input_images.append(str(f))
-    #input_images = [str(f) for f in sorted(Path(source_dir).rglob('*')) if is_image_ext(f) and os.path.isfile(f)]
-    
+    input_images = [str(f) for f in sorted(Path(source_dir).rglob('*')) if is_image_ext(f) and os.path.isfile(f)]
+
     # Load labels.
     labels = {}
     meta_fname = os.path.join(source_dir, 'dataset.json')
@@ -86,6 +75,109 @@ def open_image_folder(source_dir, *, max_images: Optional[int]):
             arch_fname = arch_fname.replace('\\', '/')
             img = np.array(PIL.Image.open(fname))
             yield dict(img=img, label=labels.get(arch_fname))
+            if idx >= max_idx-1:
+                break
+    return max_idx, iterate_images()
+
+#----------------------------------------------------------------------------
+
+def open_image_folder_v2(source_dir, *, max_images: Optional[int]):
+    input_images = []
+    for f in sorted(Path(source_dir).rglob('*')):
+        if is_image_ext(f) and os.path.isfile(f):
+            input_images.append(str(f))
+    #input_images = [str(f) for f in sorted(Path(source_dir).rglob('*')) if is_image_ext(f) and os.path.isfile(f)]
+    
+    # Load labels.
+    # labels = {}
+    # meta_fname = os.path.join(source_dir, 'dataset.json')
+    # if os.path.isfile(meta_fname):
+    #     with open(meta_fname, 'r') as file:
+    #         labels = json.load(file)['labels']
+    #         if labels is not None:
+    #             labels = { x[0]: x[1] for x in labels }
+    #         else:
+    #             labels = {}
+
+    # Label Handler ##########################################################################################################################
+    labels = {}
+
+    # Change the name of the CSV file
+    meta_fname = os.path.join(source_dir, 'dermamnist_224.csv')
+    # Read CSV file from the directory
+    df = pd.read_csv(meta_fname)
+
+    # # Create a dictionary with the unique labels
+    # unique_labels = df.iloc[:, 2].unique()
+    # label_int = {}
+    # # Sort the unique labels alphabeticaly
+    # unique_labels = sorted(unique_labels)
+    
+    # TODO: uncomment this for HAM10000 dataset
+    # for idx, label in enumerate(unique_labels, start=0):
+    #     label_int[label] = idx
+
+
+    for image, label in zip(df.iloc[:, 1], df.iloc[:, 2]):
+        # Remove condition if all labels are used
+        # if label == 'mel':
+        # TODO: uncomment this for HAM10000 dataset
+        # labels[image] = label_int[label]
+        labels[image] = label
+    ##########################################################################################################################################
+
+    max_idx = maybe_min(len(input_images), max_images)
+    # print(labels)
+    # exit(0)
+
+    def iterate_images():
+        for idx, fname in enumerate(input_images):
+            arch_fname = os.path.relpath(fname, source_dir)
+            arch_fname = arch_fname.replace('\\', '/')
+            img = np.array(PIL.Image.open(fname))
+            # print(fname)
+            dict_key = os.path.basename(fname)
+            # print(dict_key, labels.get(dict_key) )
+            # print(type(labels.get(dict_key) ))
+
+            # print(img.shape, labels.get(dict_key))
+            if labels.get(dict_key) is None:
+                print(f'{idx} {fname}')
+                exit(0)
+            yield dict(img=img, label=labels.get(dict_key))
+            
+
+            # yield dict(img=img, label=labels.get(arch_fname))
+            if idx >= max_idx-1:
+                break
+    return max_idx, iterate_images()
+
+#----------------------------------------------------------------------------
+def open_image_folder_v3(source_dir, *, max_images: Optional[int]):
+  
+    # Label Handler ##########################################################################################################################
+    labels = {}
+    # Change the name of the CSV file
+    meta_fname = os.path.join(source_dir, 'dermamnist_224.csv')
+    # Read CSV file from the directory
+    df = pd.read_csv(meta_fname)
+    ##########################################################################################################################################
+
+    all_image_files = df.iloc[:, 1]
+    all_labels = df.iloc[:, 2]
+    length = len(all_image_files)
+    max_idx = maybe_min(length, max_images)
+
+    def iterate_images():
+        for idx in range(len(all_image_files)):
+            full_path = f'{source_dir}/dermamnist_224/{all_image_files[idx]}'
+            img = np.array(PIL.Image.open(full_path))
+            label_value = all_labels[idx]
+            label_value = int(label_value)
+            
+            yield dict(img=img, label=label_value)
+            
+            # yield dict(img=img, label=labels.get(arch_fname))
             if idx >= max_idx-1:
                 break
     return max_idx, iterate_images()
@@ -265,24 +357,19 @@ def make_transform(
 #----------------------------------------------------------------------------
 
 def open_dataset(source, *, max_images: Optional[int]):
+    print(type(source), os.path.isdir(source))
     # If source is a directory
     if os.path.isdir(source):
-<<<<<<< HEAD
         # If lmdb file
         if source.rstrip('/').endswith('_lmdb'):
             return open_lmdb(source, max_images=max_images)
         # If image folder
-=======
-        # If source is an LMDB directory
-        if source.rstrip('/').endswith('_lmdb'):
-            return open_lmdb(source, max_images=max_images)
-        # If source is an image folder
->>>>>>> e1f1e098761bb1d7d70bba0d68df8400d05d9f33
         else:
-            return open_image_folder(source, max_images=max_images)
+            # return open_image_folder(source, max_images=max_images)
+            return open_image_folder_v3(source, max_images=max_images)
+
     # If source is a file
     elif os.path.isfile(source):
-<<<<<<< HEAD
         # If default_dataset
         if os.path.basename(source) == 'cifar-10-python.tar.gz':
             return open_cifar10(source, max_images=max_images)
@@ -290,15 +377,6 @@ def open_dataset(source, *, max_images: Optional[int]):
         elif os.path.basename(source) == 'train-images-idx3-ubyte.gz':
             return open_mnist(source, max_images=max_images)
         # If zip file
-=======
-        # If the filename is cifar-10-python.tar.gz
-        if os.path.basename(source) == 'cifar-10-python.tar.gz':
-            return open_cifar10(source, max_images=max_images)
-        # If the filename is train-images-idx3-ubyte.gz
-        elif os.path.basename(source) == 'train-images-idx3-ubyte.gz':
-            return open_mnist(source, max_images=max_images)
-        # If the filename is a zip archive
->>>>>>> e1f1e098761bb1d7d70bba0d68df8400d05d9f33
         elif file_ext(source) == 'zip':
             return open_image_zip(source, max_images=max_images)
         # Unknown
@@ -472,7 +550,10 @@ def convert_dataset(
         img.save(image_bits, format='png', compress_level=0, optimize=False)
         save_bytes(os.path.join(archive_root_dir, archive_fname), image_bits.getbuffer())
         labels.append([archive_fname, image['label']] if image['label'] is not None else None)
-
+    
+    for i, x in enumerate(labels): 
+        if x is None:
+            print(f'{i} Warning: Some images are missing labels.  The dataset will not contain class labels.')
     metadata = {
         'labels': labels if all(x is not None for x in labels) else None
     }
