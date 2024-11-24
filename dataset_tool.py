@@ -153,6 +153,7 @@ def open_image_folder_v2(source_dir, *, max_images: Optional[int]):
     return max_idx, iterate_images()
 
 #----------------------------------------------------------------------------
+
 def open_image_folder_v3(source_dir, *, max_images: Optional[int]):
   
     # Change the name of the CSV file
@@ -168,6 +169,46 @@ def open_image_folder_v3(source_dir, *, max_images: Optional[int]):
     # # Check the labels
     # print("All unique labels \n", all_labels.unique(), "\n")
     # print("Label counts \n", all_labels.value_counts())
+    # exit(0)
+
+    def iterate_images():
+        for idx in range(len(all_image_files)):
+            if file_ext(all_image_files[idx]) == 'csv':
+                continue
+            full_path = f'{source_dir}/{all_image_files[idx]}'
+            img = np.array(PIL.Image.open(full_path))
+            label_value = all_labels[idx]
+            label_value = int(label_value)
+            
+            yield dict(img=img, label=label_value)
+            
+            if idx >= max_idx-1:
+                break
+    return max_idx, iterate_images()
+
+#----------------------------------------------------------------------------
+
+def open_image_folder_CCSN(source_dir, *, max_images: Optional[int]):
+  
+    # Change the name of the CSV file
+    meta_fname = os.path.join(source_dir, 'CCSN.csv')
+    # Read CSV file from the directory
+    df = pd.read_csv(meta_fname)
+
+    all_image_files=df.iloc[:, 0]
+    all_labels = df.iloc[:, 1]
+    length = len(all_image_files)
+    max_idx = maybe_min(length, max_images)
+
+    # Create a dictionary with the unique labels
+    unique_labels = all_labels.unique()
+    label_int = {label: idx for idx, label in enumerate(sorted(unique_labels))}
+    
+    # Convert labels to numbers
+    all_labels = all_labels.map(label_int)
+
+    print("All unique labels", all_labels.unique(), "\n")
+    print("Label counts", all_labels.value_counts())
     # exit(0)
 
     def iterate_images():
@@ -369,7 +410,7 @@ def open_dataset(source, *, max_images: Optional[int]):
         # If image folder
         else:
             # return open_image_folder(source, max_images=max_images)
-            return open_image_folder_v3(source, max_images=max_images)
+            return open_image_folder_CCSN(source, max_images=max_images)
 
     # If source is a file
     elif os.path.isfile(source):
