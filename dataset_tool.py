@@ -207,8 +207,11 @@ def open_image_folder_CCSN(source_dir, *, max_images: Optional[int]):
     # Convert labels to numbers
     all_labels = all_labels.map(label_int)
 
-    print("All unique labels", all_labels.unique(), "\n")
-    print("Label counts", all_labels.value_counts())
+    # Print label and number of samples for each label
+    # print("All unique labels", df.iloc[:, 1].unique(), "\n")
+    # print("Label counts", df.iloc[:, 1].value_counts())
+    # print("All unique labels", all_labels.unique(), "\n")
+    # print("Label counts", all_labels.value_counts())
     # exit(0)
 
     def iterate_images():
