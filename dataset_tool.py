@@ -155,13 +155,14 @@ def open_image_folder_v2(source_dir, *, max_images: Optional[int]):
 #----------------------------------------------------------------------------
 
 def open_image_folder_v3(source_dir, *, max_images: Optional[int]):
-  
+
     # Change the name of the CSV file
-    meta_fname = os.path.join(source_dir, 'dermamnist_224.csv')
+    meta_fname = os.path.join(source_dir, 'metadata.csv')
     # Read CSV file from the directory
     df = pd.read_csv(meta_fname)
 
-    all_image_files=df.iloc[:, 1]
+    all_image_files=df.iloc[:, 0]
+    all_classes = df.iloc[:, 1]
     all_labels = df.iloc[:, 2]
     length = len(all_image_files)
     max_idx = maybe_min(length, max_images)
@@ -175,7 +176,7 @@ def open_image_folder_v3(source_dir, *, max_images: Optional[int]):
         for idx in range(len(all_image_files)):
             if file_ext(all_image_files[idx]) == 'csv':
                 continue
-            full_path = f'{source_dir}/{all_image_files[idx]}'
+            full_path = f'{source_dir}{all_classes[idx]}/{all_image_files[idx]}'
             img = np.array(PIL.Image.open(full_path))
             label_value = all_labels[idx]
             label_value = int(label_value)
@@ -413,7 +414,7 @@ def open_dataset(source, *, max_images: Optional[int]):
         # If image folder
         else:
             # return open_image_folder(source, max_images=max_images)
-            return open_image_folder_CCSN(source, max_images=max_images)
+            return open_image_folder_v3(source, max_images=max_images)
 
     # If source is a file
     elif os.path.isfile(source):
