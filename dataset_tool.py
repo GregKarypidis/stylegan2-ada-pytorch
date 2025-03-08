@@ -176,7 +176,7 @@ def open_image_folder_v3(source_dir, *, max_images: Optional[int]):
         for idx in range(len(all_image_files)):
             if file_ext(all_image_files[idx]) == 'csv':
                 continue
-            full_path = f'{source_dir}{all_classes[idx]}/{all_image_files[idx]}'\
+            full_path = f'{source_dir}{all_classes[idx]}/{all_image_files[idx]}'
             img = np.array(PIL.Image.open(full_path))
             label_value = all_labels[idx]
             label_value = int(label_value)
