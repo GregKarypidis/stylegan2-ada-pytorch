@@ -49,7 +49,7 @@ def is_image_ext(fname: Union[str, Path]) -> bool:
     ext = file_ext(fname).lower()
     return f'.{ext}' in PIL.Image.EXTENSION # type: ignore
 
-def open_image_folder(source_dir, *, max_images: Optional[int]):
+def open_image_folder(source_dir, *, max_images: Optional[int], dataset_name=None):
 
     # Change the name of the CSV file
     meta_fname = os.path.join(source_dir, 'metadata.csv')
@@ -67,6 +67,8 @@ def open_image_folder(source_dir, *, max_images: Optional[int]):
     # print("Label counts \n", all_labels.value_counts())
     # exit(0)
 
+    dataset_name = source_dir.split("/")[1]
+
     def iterate_images():
         for idx in range(len(all_image_files)):
             if file_ext(all_image_files[idx]) == 'csv':
@@ -80,7 +82,7 @@ def open_image_folder(source_dir, *, max_images: Optional[int]):
             
             if idx >= max_idx-1:
                 break
-    return max_idx, iterate_images()
+    return max_idx, iterate_images(), dataset_name
 
 #----------------------------------------------------------------------------
 
@@ -256,7 +258,7 @@ def make_transform(
 
 #----------------------------------------------------------------------------
 
-def open_dataset(source, *, max_images: Optional[int]):
+def open_dataset(source, *, max_images: Optional[int], dataset_name=None):
     #print(type(source), os.path.isdir(source))
     # If source is a directory
     if os.path.isdir(source):
@@ -266,7 +268,7 @@ def open_dataset(source, *, max_images: Optional[int]):
         # If image folder
         else:
             # return open_image_folder(source, max_images=max_images)
-            return open_image_folder(source, max_images=max_images)
+            return open_image_folder(source, max_images=max_images, dataset_name=dataset_name)
 
     # If source is a file
     elif os.path.isfile(source):
@@ -403,7 +405,9 @@ def convert_dataset(
     if dest == '':
         ctx.fail('--dest output filename or directory must not be an empty string')
 
-    num_files, input_iter = open_dataset(source, max_images=max_images)
+    num_files, input_iter, dataset_name = open_dataset(source, max_images=max_images)
+    with open(Path(dest) / "info.txt", 'w') as f:
+        f.write(dataset_name)
     archive_root_dir, save_bytes, close_dest = open_dest(dest)
 
     transform_image = make_transform(transform, width, height, resize_filter)
