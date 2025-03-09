@@ -17,6 +17,7 @@ import tempfile
 import torch
 import dnnlib
 
+from pathlib import Path
 from training import training_loop
 from metrics import metric_main
 from torch_utils import training_stats
@@ -141,9 +142,6 @@ def setup_training_loop_kwargs(
     if mirror:
         desc += '-mirror'
         args.training_set_kwargs.xflip = True
-
-    print(desc)
-    print("dataset name:", args.training_set_kwargs)
 
     # ------------------------------------
     # Base config: cfg, gamma, kimg, batch
@@ -490,6 +488,10 @@ def main(ctx, outdir, dry_run, **config_kwargs):
     except UserError as err:
         ctx.fail(err)
 
+    # Open the info.txt file and get its contents.
+    with open(Path("out/info.txt"), 'r') as f:
+        dataset_name = f.read()
+
     # Pick output directory.
     prev_run_dirs = []
     if os.path.isdir(outdir):
@@ -497,13 +499,8 @@ def main(ctx, outdir, dry_run, **config_kwargs):
     prev_run_ids = [re.match(r'^\d+', x) for x in prev_run_dirs]
     prev_run_ids = [int(x.group()) for x in prev_run_ids if x is not None]
     cur_run_id = max(prev_run_ids, default=-1) + 1
-    args.run_dir = os.path.join(outdir, f'{cur_run_id:05d}-{run_desc}')
+    args.run_dir = os.path.join(outdir, f'{cur_run_id:05d}-{run_desc}-{dataset_name}')
     assert not os.path.exists(args.run_dir)
-
-    print(f'{cur_run_id:05d}-{run_desc}')
-    print("args.run_dir:", args.run_dir)
-    print("prev_run_dirs[]:", prev_run_dirs)
-    exit(0)
 
     # Print options.
     print()
