@@ -4,8 +4,6 @@ __pycache__/
 fake_images/
 out/
 tmp/
-HAM10000_images/
 training-runs/
 README.md/
-CCSN/
-hyper_kvasir_dataset/
+datasets/

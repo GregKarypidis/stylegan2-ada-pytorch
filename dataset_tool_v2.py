@@ -23,6 +23,8 @@ import numpy as np
 import PIL.Image
 from tqdm import tqdm
 
+import pandas as pd
+
 #----------------------------------------------------------------------------
 
 def error(msg):
@@ -47,30 +49,35 @@ def is_image_ext(fname: Union[str, Path]) -> bool:
     ext = file_ext(fname).lower()
     return f'.{ext}' in PIL.Image.EXTENSION # type: ignore
 
-#----------------------------------------------------------------------------
-
 def open_image_folder(source_dir, *, max_images: Optional[int]):
-    input_images = [str(f) for f in sorted(Path(source_dir).rglob('*')) if is_image_ext(f) and os.path.isfile(f)]
 
-    # Load labels.
-    labels = {}
-    meta_fname = os.path.join(source_dir, 'dataset.json')
-    if os.path.isfile(meta_fname):
-        with open(meta_fname, 'r') as file:
-            labels = json.load(file)['labels']
-            if labels is not None:
-                labels = { x[0]: x[1] for x in labels }
-            else:
-                labels = {}
+    # Change the name of the CSV file
+    meta_fname = os.path.join(source_dir, 'metadata.csv')
+    # Read CSV file from the directory
+    df = pd.read_csv(meta_fname)
 
-    max_idx = maybe_min(len(input_images), max_images)
+    all_image_files=df.iloc[:, 0]
+    all_classes = df.iloc[:, 1]
+    all_labels = df.iloc[:, 2]
+    length = len(all_image_files)
+    max_idx = maybe_min(length, max_images)
+
+    # # Check the labels
+    # print("All unique labels \n", all_labels.unique(), "\n")
+    # print("Label counts \n", all_labels.value_counts())
+    # exit(0)
 
     def iterate_images():
-        for idx, fname in enumerate(input_images):
-            arch_fname = os.path.relpath(fname, source_dir)
-            arch_fname = arch_fname.replace('\\', '/')
-            img = np.array(PIL.Image.open(fname))
-            yield dict(img=img, label=labels.get(arch_fname))
+        for idx in range(len(all_image_files)):
+            if file_ext(all_image_files[idx]) == 'csv':
+                continue
+            full_path = f'{source_dir}{all_classes[idx]}/{all_image_files[idx]}'
+            img = np.array(PIL.Image.open(full_path))
+            label_value = all_labels[idx]
+            label_value = int(label_value)
+            
+            yield dict(img=img, label=label_value)
+            
             if idx >= max_idx-1:
                 break
     return max_idx, iterate_images()
@@ -250,20 +257,32 @@ def make_transform(
 #----------------------------------------------------------------------------
 
 def open_dataset(source, *, max_images: Optional[int]):
+    #print(type(source), os.path.isdir(source))
+    # If source is a directory
     if os.path.isdir(source):
+        # If lmdb file
         if source.rstrip('/').endswith('_lmdb'):
             return open_lmdb(source, max_images=max_images)
+        # If image folder
         else:
+            # return open_image_folder(source, max_images=max_images)
             return open_image_folder(source, max_images=max_images)
+
+    # If source is a file
     elif os.path.isfile(source):
+        # If default_dataset
         if os.path.basename(source) == 'cifar-10-python.tar.gz':
             return open_cifar10(source, max_images=max_images)
+        # If default_dataset
         elif os.path.basename(source) == 'train-images-idx3-ubyte.gz':
             return open_mnist(source, max_images=max_images)
+        # If zip file
         elif file_ext(source) == 'zip':
             return open_image_zip(source, max_images=max_images)
+        # Unknown
         else:
             assert False, 'unknown archive type'
+    # Error
     else:
         error(f'Missing input file or directory: {source}')
 
@@ -431,7 +450,10 @@ def convert_dataset(
         img.save(image_bits, format='png', compress_level=0, optimize=False)
         save_bytes(os.path.join(archive_root_dir, archive_fname), image_bits.getbuffer())
         labels.append([archive_fname, image['label']] if image['label'] is not None else None)
-
+    
+    for i, x in enumerate(labels): 
+        if x is None:
+            print(f'{i} Warning: Some images are missing labels.  The dataset will not contain class labels.')
     metadata = {
         'labels': labels if all(x is not None for x in labels) else None
     }
