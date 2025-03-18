@@ -116,6 +116,10 @@ class Dataset(torch.utils.data.Dataset):
     @property
     def image_shape(self):
         return list(self._raw_shape[1:])
+    
+    @property
+    def mask_shape(self):
+        return list(self._raw_shape[1:])
 
     @property
     def num_channels(self):
@@ -163,6 +167,12 @@ class ImageFolderDataset(Dataset):
     ):
         self._path = path
         self._zipfile = None
+
+        print(super_kwargs)
+        print(os.walk(self._path))
+        exit(0)
+
+        # if fname.startswith('dataset') else 'dir'
 
         if os.path.isdir(self._path):
             self._type = 'dir'

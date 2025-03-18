@@ -51,8 +51,7 @@ def is_image_ext(fname: Union[str, Path]) -> bool:
 
 #----------------------------------------------------------------------------
 
-def open_images(source_dir, *, max_images: Optional[int], dataset_name=None, target_resolution=(256)):
-
+def open_images_masks_dataset(source_dir, *, max_images: Optional[int], dataset_name=None, target_resolution=(256)):
     # Change the name of the CSV file
     if dataset_name == 'ISBI2016_ISIC_Part3B_Training_Data':
         meta_fname = os.path.join(source_dir, 'ISBI2016_ISIC_Part3B_Training_GroundTruth.csv')
@@ -67,14 +66,8 @@ def open_images(source_dir, *, max_images: Optional[int], dataset_name=None, tar
 
     all_image_files=df.iloc[:, 0]
     all_classes = df.iloc[:, 1]
-    # all_labels = df.iloc[:, 2]
     length = len(all_image_files)
     max_idx = maybe_min(length, max_images)
-
-    # # Check the labels
-    # print("All unique labels \n", all_labels.unique(), "\n")
-    # print("Label counts \n", all_labels.value_counts())
-    # exit(0)
 
     # dataset_name = source_dir.split("/")[1]
     if dataset_name == 'ISBI2016_ISIC_Part3B_Training_Data':
@@ -85,7 +78,6 @@ def open_images(source_dir, *, max_images: Optional[int], dataset_name=None, tar
     def convert_label_to_int(label, uniques):
         return uniques.index(label)
 
-
     def iterate_images():
         for idx in range(len(all_image_files)):
             full_path = f'{source_dir}/{all_image_files[idx]}{image_extension}'
@@ -95,19 +87,16 @@ def open_images(source_dir, *, max_images: Optional[int], dataset_name=None, tar
             label_value = all_classes[idx]
             label_value = convert_label_to_int(label_value, unique_labels)
 
-
             def load_and_process_mask(full_path):
-
-                mask = PIL.Image.open(full_path).convert("L")
-                # mask = mask.resize((256, 256), PIL.Image.BICUBIC)
+                mask = PIL.Image.open(full_path).convert('RGB')
                 mask = np.array(mask)
-                mask = np.expand_dims(mask, axis=-1)
-                # mask = np.repeat(mask, 3, axis=2)
+                # mask = np.expand_dims(mask, axis=-1)
                 return mask
             
             print("Image shape: ", img.shape)
             print("Label: ", label_value)
             mask = load_and_process_mask(mask_path)
+            print("Types: ", mask.dtype, img.dtype)
             print("Mask shape: ", mask.shape)
             
             yield dict(img=img, mask=mask, label=label_value)
@@ -301,7 +290,7 @@ def open_dataset(source, *, max_images: Optional[int], dataset_name=None):
         else:
             # return open_image_folder(source, max_images=max_images)
             #todo 
-            return open_image_masks_folder(source, max_images=max_images, dataset_name=dataset_name)
+            return open_images_masks_dataset(source, max_images=max_images, dataset_name=dataset_name)
 
     # If source is a file
     elif os.path.isfile(source):
@@ -455,7 +444,10 @@ def convert_dataset(
         mask_fname = f'{idx_str[:5]}/mask{idx_str}.png'
 
         # Apply crop and resize.
+        print("Image shape: ", image['img'].dtype)
         img = transform_image(image['img'])
+        print("Image shape: ", img.dtype, type(img))
+
         mask = transform_image(image['mask'])
 
         # Transform may drop images.
@@ -465,6 +457,8 @@ def convert_dataset(
         # Error check to require uniform image attributes across
         # the whole dataset.
         channels = img.shape[2] if img.ndim == 3 else 1
+        mask_channels = 1
+
         cur_image_attrs = {
             'width': img.shape[1],
             'height': img.shape[0],
@@ -489,10 +483,10 @@ def convert_dataset(
         image_bits = io.BytesIO()
         img.save(image_bits, format='png', compress_level=0, optimize=False)
         save_bytes(os.path.join(archive_root_dir, archive_fname), image_bits.getbuffer())
-        labels.append([archive_fname, image['label']] if image['label'] is not None else None)
 
         # Save the mask as an uncompressed PNG.
         mask = PIL.Image.fromarray(mask, { 1: 'L', 3: 'RGB' }[channels])
+        mask =mask.convert('L')
         mask_bits = io.BytesIO()
         mask.save(mask_bits, format='png', compress_level=0, optimize=False)
         save_bytes(os.path.join(archive_root_dir, mask_fname), mask_bits.getbuffer())
