@@ -81,11 +81,14 @@ def open_image_folder(source_dir, *, max_images: Optional[int], dataset_name=Non
             label_value = int(label_value)
 
             def load_and_process_mask(full_path):
+                print("Full path: ", full_path)
+                print(full_path.replace("images", "masks").replace("jpg", "png"))
+                exit(0)
                 mask = PIL.Image.open(full_path.replace("images", "masks").replace("jpg", "png")).convert("L")
-                mask = mask.resize((256, 256), PIL.Image.NEAREST)
+                mask = mask.resize((256, 256), PIL.Image.BICUBIC)
                 mask = np.array(mask)
                 mask = np.expand_dims(mask, axis=2)
-                mask = np.repeat(mask, 3, axis=2)
+                # mask = np.repeat(mask, 3, axis=2)
                 return mask
 
             print("Image shape: ", img.shape)
@@ -99,6 +102,58 @@ def open_image_folder(source_dir, *, max_images: Optional[int], dataset_name=Non
             if idx >= max_idx-1:
                 break
     return max_idx, iterate_images(), dataset_name
+
+#----------------------------------------------------------------------------
+
+def open_image_folder_isic_masks(source_dir, *, max_images: Optional[int]):
+    images_dir = os.path.join(source_dir, 'input_data')
+    input_images = [str(f) for f in sorted(Path(images_dir).rglob('*.pkl')) if os.path.isfile(f)]
+    # input_images = [str(f) for f in sorted(Path(images_dir).rglob('*')) if is_image_ext(f) and os.path.isfile(f)]
+    assert len(input_images) != 0, 'No input images found'
+    print(f'Filenames found {len(input_images)}')
+
+
+    # Load labels.
+    labels = {}
+    # meta_fname = os.path.join(source_dir, 'dataset.json')
+    # if os.path.isfile(meta_fname):
+    #     with open(meta_fname, 'r') as file:
+    #         labels = json.load(file)['labels']
+    #         if labels is not None:
+    #             labels = { x[0]: x[1] for x in labels }
+    #         else:
+    #             labels = {}
+
+    max_idx = maybe_min(len(input_images), max_images)
+
+    import pickle
+    import cv2 as cv
+
+    def iterate_images():
+        for idx, fname in enumerate(input_images):
+            # print(fname)
+            base_name = os.path.basename(fname).split('.pkl')[0]
+            with open(fname, 'rb') as f:
+                image = pickle.load(f)
+
+            max_val = np.max(image)
+            min_val = np.min(image)
+            image = (image - min_val) / (max_val - min_val) * 255.0
+            image = image.astype(np.uint8)
+            resize_dims = resize_aspect_ratio_padding(image, target_resolution=128)
+            image = cv.resize(image, resize_dims, interpolation=cv.INTER_CUBIC)
+            image = zero_pad(image, resize_dims)
+
+            mask = cv.imread(f'{source_dir}/target_data/{base_name}.png')
+            print(f'{source_dir}/target_data/{base_name}.png')
+            mask = cv.cvtColor(mask, cv.COLOR_BGR2GRAY)
+            mask = cv.resize(mask, resize_dims, interpolation=cv.INTER_CUBIC)
+            mask = zero_pad(mask, resize_dims)
+            yield dict(img=image, mask=mask, label=None)
+
+            if idx >= max_idx-1:
+                break
+    return max_idx, iterate_images()
 
 #----------------------------------------------------------------------------
 
