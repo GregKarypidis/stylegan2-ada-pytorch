@@ -23,10 +23,6 @@ import numpy as np
 import PIL.Image
 from tqdm import tqdm
 
-# Custom libraries ###########################################################################################################################
-import pandas as pd
-##############################################################################################################################################
-
 #----------------------------------------------------------------------------
 
 def error(msg):
@@ -179,7 +175,7 @@ def open_image_folder_v3(source_dir, *, max_images: Optional[int]):
             label_value = all_labels[idx]
             label_value = int(label_value)
             
-            yield dict(img=img, label=label_value)  #todo: mask=mask
+            yield dict(img=img, label=label_value)
             
             if idx >= max_idx-1:
                 break
@@ -360,32 +356,20 @@ def make_transform(
 #----------------------------------------------------------------------------
 
 def open_dataset(source, *, max_images: Optional[int]):
-    #print(type(source), os.path.isdir(source))
-    # If source is a directory
     if os.path.isdir(source):
-        # If lmdb file
         if source.rstrip('/').endswith('_lmdb'):
             return open_lmdb(source, max_images=max_images)
-        # If image folder
         else:
-            # return open_image_folder(source, max_images=max_images)
-            return open_image_folder_v3(source, max_images=max_images)
-
-    # If source is a file
+            return open_image_folder(source, max_images=max_images)
     elif os.path.isfile(source):
-        # If default_dataset
         if os.path.basename(source) == 'cifar-10-python.tar.gz':
             return open_cifar10(source, max_images=max_images)
-        # If default_dataset
         elif os.path.basename(source) == 'train-images-idx3-ubyte.gz':
             return open_mnist(source, max_images=max_images)
-        # If zip file
         elif file_ext(source) == 'zip':
             return open_image_zip(source, max_images=max_images)
-        # Unknown
         else:
             assert False, 'unknown archive type'
-    # Error
     else:
         error(f'Missing input file or directory: {source}')
 
@@ -555,10 +539,7 @@ def convert_dataset(
         img.save(image_bits, format='png', compress_level=0, optimize=False) # todo save concatenated image & mask
         save_bytes(os.path.join(archive_root_dir, archive_fname), image_bits.getbuffer())
         labels.append([archive_fname, image['label']] if image['label'] is not None else None)
-    
-    for i, x in enumerate(labels): 
-        if x is None:
-            print(f'{i} Warning: Some images are missing labels.  The dataset will not contain class labels.')
+
     metadata = {
         'labels': labels if all(x is not None for x in labels) else None
     }

@@ -5,4 +5,9 @@ fake_images/
 out/
 tmp/
 training-runs/
+<<<<<<< HEAD
 datasets/
+=======
+README.md/
+datasets/
+>>>>>>> ee0dcf2cbc4be397bf9da5118ed1415b1a83f95b
