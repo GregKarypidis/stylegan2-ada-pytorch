@@ -49,6 +49,8 @@ def is_image_ext(fname: Union[str, Path]) -> bool:
     ext = file_ext(fname).lower()
     return f'.{ext}' in PIL.Image.EXTENSION # type: ignore
 
+#----------------------------------------------------------------------------
+
 def open_image_folder(source_dir, *, max_images: Optional[int], dataset_name=None):
 
     # Change the name of the CSV file
@@ -73,12 +75,26 @@ def open_image_folder(source_dir, *, max_images: Optional[int], dataset_name=Non
         for idx in range(len(all_image_files)):
             if file_ext(all_image_files[idx]) == 'csv':
                 continue
-            full_path = f'{source_dir}{all_classes[idx]}/{all_image_files[idx]}'
+            full_path = f'{source_dir}/{all_classes[idx]}/{all_image_files[idx]}'
             img = np.array(PIL.Image.open(full_path))
             label_value = all_labels[idx]
             label_value = int(label_value)
+
+            def load_and_process_mask(full_path):
+                mask = PIL.Image.open(full_path.replace("images", "masks").replace("jpg", "png")).convert("L")
+                mask = mask.resize((256, 256), PIL.Image.NEAREST)
+                mask = np.array(mask)
+                mask = np.expand_dims(mask, axis=2)
+                mask = np.repeat(mask, 3, axis=2)
+                return mask
+
+            print("Image shape: ", img.shape)
+            print("Label: ", label_value)
+            mask = load_and_process_mask(full_path)
+            print("Mask shape: ", mask.shape)
+            exit(0)
             
-            yield dict(img=img, label=label_value)
+            yield dict(img=img, mask=mask, label=label_value)
             
             if idx >= max_idx-1:
                 break
@@ -406,8 +422,7 @@ def convert_dataset(
         ctx.fail('--dest output filename or directory must not be an empty string')
 
     num_files, input_iter, dataset_name = open_dataset(source, max_images=max_images)
-    with open(Path(dest) / "info.txt", 'w') as f:
-        f.write(dataset_name)
+    
     archive_root_dir, save_bytes, close_dest = open_dest(dest)
 
     transform_image = make_transform(transform, width, height, resize_filter)
@@ -462,6 +477,8 @@ def convert_dataset(
         'labels': labels if all(x is not None for x in labels) else None
     }
     save_bytes(os.path.join(archive_root_dir, 'dataset.json'), json.dumps(metadata))
+    with open(Path(dest) / "info.txt", 'w') as f:
+        f.write(dataset_name)
     close_dest()
 
 #----------------------------------------------------------------------------
