@@ -4,5 +4,5 @@ __pycache__/
 fake_images/
 out/
 tmp/
-HAM10000_images/
 training-runs/
+datasets/
