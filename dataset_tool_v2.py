@@ -60,16 +60,19 @@ def open_images_masks_dataset(source_dir, *, max_images: Optional[int], dataset_
 
     # Read CSV file from the directory
     df = pd.read_csv(meta_fname)
-    if dataset_name == 'ISBI2016_ISIC_Part3B_Training_Data':
-        df.columns = ['Name', 'Class']
-        print(df.head(), df[:10])
 
-    all_image_files=df.iloc[:, 0]
+    if dataset_name == 'ISBI2016_ISIC_Part3B_Training_Data':
+        # Create header columns and titles
+        df.columns = ['Name', 'Class']
+        print(df.head(5))
+
+    # Get all img from first column
+    all_image_files = df.iloc[:, 0]
+    # Get all labels from second column
     all_classes = df.iloc[:, 1]
     length = len(all_image_files)
     max_idx = maybe_min(length, max_images)
 
-    # dataset_name = source_dir.split("/")[1]
     if dataset_name == 'ISBI2016_ISIC_Part3B_Training_Data':
         unique_labels = np.unique(all_classes)
         unique_labels = sorted(unique_labels)
@@ -80,10 +83,12 @@ def open_images_masks_dataset(source_dir, *, max_images: Optional[int], dataset_
 
     def iterate_images():
         for idx in range(len(all_image_files)):
-            full_path = f'{source_dir}/{all_image_files[idx]}{image_extension}'
+            # The path/name for the image
+            img_path = f'{source_dir}/{all_image_files[idx]}{image_extension}'
+            # The path/name for the mask
             mask_path = f'{source_dir}/{all_image_files[idx]}_Segmentation{mask_extension}'
 
-            img = np.array(PIL.Image.open(full_path))
+            img = np.array(PIL.Image.open(img_path))
             label_value = all_classes[idx]
             label_value = convert_label_to_int(label_value, unique_labels)
 

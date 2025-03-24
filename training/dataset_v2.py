@@ -36,6 +36,8 @@ class Dataset(torch.utils.data.Dataset):
         self._raw_labels = None
         self._label_shape = None
 
+        print(self._raw_shape)
+
         # Apply max_size
         self._raw_idx = np.arange(self._raw_shape[0], dtype=np.int64)
         # If max_size is set to True
@@ -85,14 +87,21 @@ class Dataset(torch.utils.data.Dataset):
         return self._raw_idx.size
 
     def __getitem__(self, idx):
-        image = self._load_raw_image(self._raw_idx[idx])
+        image, mask = self._load_raw_image(self._raw_idx[idx])
         assert isinstance(image, np.ndarray)
-        assert list(image.shape) == self.image_shape
+        assert isinstance(mask, np.ndarray)
+        assert list(image.shape) == self.rgb_image_shape, 'Check img shape'
+        assert list(mask.shape) == self.mask_shape, 'Check mask shape'
         assert image.dtype == np.uint8
+        assert mask.dtype == np.uint8
         if self._xflip[idx]:
             assert image.ndim == 3 # CHW
+            assert mask.ndim == 3
             image = image[:, :, ::-1]
-        return image.copy(), self.get_label(idx)
+            mask = mask[:, :, ::-1]
+        img_with_mask = np.concatenate([image, mask], axis=0)
+        # print('Line 105', type(img_with_mask))
+        return img_with_mask.copy(), self.get_label(idx)
 
     def get_label(self, idx):
         label = self._get_raw_labels()[self._raw_idx[idx]]
@@ -115,11 +124,21 @@ class Dataset(torch.utils.data.Dataset):
 
     @property
     def image_shape(self):
-        return list(self._raw_shape[1:])
+        image, mask = self._load_raw_image(self._raw_idx[0])
+        img_shape = list(image.shape) # CHW
+        mask_shape = list(mask.shape) # CHW
+        concatenated_shape = [img_shape[0] + mask_shape[0]] + img_shape[1::]
+        return concatenated_shape
+    
+    @property
+    def rgb_image_shape(self):
+        image, _ = self._load_raw_image(self._raw_idx[0])
+        return list(image.shape)
     
     @property
     def mask_shape(self):
-        return list(self._raw_shape[1:])
+        _, mask = self._load_raw_image(self._raw_idx[0])
+        return list(mask.shape)
 
     @property
     def num_channels(self):
@@ -168,12 +187,6 @@ class ImageFolderDataset(Dataset):
         self._path = path
         self._zipfile = None
 
-        print(super_kwargs)
-        print(os.walk(self._path))
-        exit(0)
-
-        # if fname.startswith('dataset') else 'dir'
-
         if os.path.isdir(self._path):
             self._type = 'dir'
             self._all_fnames = {os.path.relpath(os.path.join(root, fname), start=self._path) for root, _dirs, files in os.walk(self._path) for fname in files}
@@ -184,12 +197,21 @@ class ImageFolderDataset(Dataset):
             raise IOError('Path must point to a directory or zip')
 
         PIL.Image.init()
-        self._image_fnames = sorted(fname for fname in self._all_fnames if self._file_ext(fname) in PIL.Image.EXTENSION)
+        self._image_fnames = sorted(fname for fname in self._all_fnames if self._file_ext(fname) in PIL.Image.EXTENSION and os.path.basename(fname).startswith('img'))
+        self._mask_fnames = sorted(fname for fname in self._all_fnames if self._file_ext(fname) in PIL.Image.EXTENSION and os.path.basename(fname).startswith('mask'))
+        print(self._image_fnames[:10], self._image_fnames[-10:])
+        print(self._mask_fnames[:10], self._mask_fnames[-10:])
+
+        assert len(self._image_fnames) == len(self._mask_fnames), 'imgs != masks'
         if len(self._image_fnames) == 0:
             raise IOError('No image files found in the specified path')
 
         name = os.path.splitext(os.path.basename(self._path))[0]
-        raw_shape = [len(self._image_fnames)] + list(self._load_raw_image(0).shape)
+        image0, mask0 = self._load_raw_image(0)
+
+        # TODO: concat shapes public
+
+        raw_shape = [len(self._image_fnames)] + list(image0.shape) # NCHW , concat
         if resolution is not None and (raw_shape[2] != resolution or raw_shape[3] != resolution):
             raise IOError('Image files do not match the specified resolution')
         super().__init__(name=name, raw_shape=raw_shape, **super_kwargs)
@@ -220,9 +242,15 @@ class ImageFolderDataset(Dataset):
 
     def __getstate__(self):
         return dict(super().__getstate__(), _zipfile=None)
+    
+    def split_concatenated(self, image_with_mask):
+        rgb_channels = self.rgb_image_shape[0]
+        # print('>>>', rgb_channels, image_with_mask[:rgb_channels].shape, image_with_mask[rgb_channels:].shape)
+        return image_with_mask[:rgb_channels], image_with_mask[rgb_channels:]
 
     def _load_raw_image(self, raw_idx):
         fname = self._image_fnames[raw_idx]
+        mname = self._mask_fnames[raw_idx]
         with self._open_file(fname) as f:
             if pyspng is not None and self._file_ext(fname) == '.png':
                 image = pyspng.load(f.read())
@@ -231,7 +259,16 @@ class ImageFolderDataset(Dataset):
         if image.ndim == 2:
             image = image[:, :, np.newaxis] # HW => HWC
         image = image.transpose(2, 0, 1) # HWC => CHW
-        return image
+
+        with self._open_file(mname) as f:
+            if pyspng is not None and self._file_ext(mname) == '.png':
+                mask = pyspng.load(f.read())
+            else:
+                mask = np.array(PIL.Image.open(f))
+        if mask.ndim == 2:
+            mask = mask[:, :, np.newaxis] # HW => HWC
+        mask = mask.transpose(2, 0, 1) # HWC => CHW
+        return image, mask
 
     def _load_raw_labels(self):
         fname = 'dataset.json'
