@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -14,6 +14,7 @@ https://github.com/NVlabs/stylegan/blob/master/metrics/perceptual_path_length.py
 import copy
 import numpy as np
 import torch
+import dnnlib
 from . import metric_utils
 
 #----------------------------------------------------------------------------
@@ -91,21 +92,26 @@ class PPLSampler(torch.nn.Module):
 
 #----------------------------------------------------------------------------
 
-def compute_ppl(opts, num_samples, epsilon, space, sampling, crop, batch_size):
-    vgg16_url = 'https://api.ngc.nvidia.com/v2/models/nvidia/research/stylegan3/versions/1/files/metrics/vgg16.pkl'
+def compute_ppl(opts, num_samples, epsilon, space, sampling, crop, batch_size, jit=False):
+    dataset = dnnlib.util.construct_class_by_name(**opts.dataset_kwargs)
+    vgg16_url = 'https://nvlabs-fi-cdn.nvidia.com/stylegan2-ada-pytorch/pretrained/metrics/vgg16.pt'
     vgg16 = metric_utils.get_feature_detector(vgg16_url, num_gpus=opts.num_gpus, rank=opts.rank, verbose=opts.progress.verbose)
 
-    # Setup sampler and labels.
+    # Setup sampler.
     sampler = PPLSampler(G=opts.G, G_kwargs=opts.G_kwargs, epsilon=epsilon, space=space, sampling=sampling, crop=crop, vgg16=vgg16)
     sampler.eval().requires_grad_(False).to(opts.device)
-    c_iter = metric_utils.iterate_random_labels(opts=opts, batch_size=batch_size)
+    if jit:
+        c = torch.zeros([batch_size, opts.G.c_dim], device=opts.device)
+        sampler = torch.jit.trace(sampler, [c], check_trace=False)
 
     # Sampling loop.
     dist = []
     progress = opts.progress.sub(tag='ppl sampling', num_items=num_samples)
     for batch_start in range(0, num_samples, batch_size * opts.num_gpus):
         progress.update(batch_start)
-        x = sampler(next(c_iter))
+        c = [dataset.get_label(np.random.randint(len(dataset))) for _i in range(batch_size)]
+        c = torch.from_numpy(np.stack(c)).pin_memory().to(opts.device)
+        x = sampler(c)
         for src in range(opts.num_gpus):
             y = x.clone()
             if opts.num_gpus > 1:

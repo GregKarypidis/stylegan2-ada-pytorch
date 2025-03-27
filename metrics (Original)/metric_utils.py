@@ -1,12 +1,10 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
 # and any modifications thereto.  Any use, reproduction, disclosure or
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
-
-"""Miscellaneous utilities used internally by the quality metrics."""
 
 import os
 import time
@@ -18,8 +16,7 @@ import numpy as np
 import torch
 import dnnlib
 
-# ----------------------------------------------------------------------------
-
+#----------------------------------------------------------------------------
 
 class MetricOptions:
     def __init__(self, G=None, G_kwargs={}, dataset_kwargs={}, num_gpus=1, rank=0, device=None, progress=None, cache=True):
@@ -33,14 +30,12 @@ class MetricOptions:
         self.progress       = progress.sub() if progress is not None and rank == 0 else ProgressMonitor()
         self.cache          = cache
 
-# ----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
 
 _feature_detector_cache = dict()
 
-
 def get_feature_detector_name(url):
     return os.path.splitext(url.split('/')[-1])[0]
-
 
 def get_feature_detector(url, device=torch.device('cpu'), num_gpus=1, rank=0, verbose=False):
     assert 0 <= rank < num_gpus
@@ -50,28 +45,12 @@ def get_feature_detector(url, device=torch.device('cpu'), num_gpus=1, rank=0, ve
         if not is_leader and num_gpus > 1:
             torch.distributed.barrier() # leader goes first
         with dnnlib.util.open_url(url, verbose=(verbose and is_leader)) as f:
-            _feature_detector_cache[key] = pickle.load(f).to(device)
+            _feature_detector_cache[key] = torch.jit.load(f).eval().to(device)
         if is_leader and num_gpus > 1:
             torch.distributed.barrier() # others follow
     return _feature_detector_cache[key]
 
-# ----------------------------------------------------------------------------
-
-
-def iterate_random_labels(opts, batch_size):
-    if opts.G.c_dim == 0:
-        c = torch.zeros([batch_size, opts.G.c_dim], device=opts.device)
-        while True:
-            yield c
-    else:
-        dataset = dnnlib.util.construct_class_by_name(**opts.dataset_kwargs)
-        while True:
-            c = [dataset.get_label(np.random.randint(len(dataset))) for _i in range(batch_size)]
-            c = torch.from_numpy(np.stack(c)).pin_memory().to(opts.device)
-            yield c
-
-# ----------------------------------------------------------------------------
-
+#----------------------------------------------------------------------------
 
 class FeatureStats:
     def __init__(self, capture_all=False, capture_mean_cov=False, max_items=None):
@@ -151,8 +130,7 @@ class FeatureStats:
         obj.__dict__.update(s)
         return obj
 
-# ----------------------------------------------------------------------------
-
+#----------------------------------------------------------------------------
 
 class ProgressMonitor:
     def __init__(self, tag=None, num_items=None, flush_interval=1000, verbose=False, progress_fn=None, pfn_lo=0, pfn_hi=1000, pfn_total=1000):
@@ -197,8 +175,7 @@ class ProgressMonitor:
             pfn_total       = self.pfn_total,
         )
 
-# ----------------------------------------------------------------------------
-
+#----------------------------------------------------------------------------
 
 def compute_feature_stats_for_dataset(opts, detector_url, detector_kwargs, rel_lo=0, rel_hi=1, batch_size=64, data_loader_kwargs=None, max_items=None, **stats_kwargs):
     dataset = dnnlib.util.construct_class_by_name(**opts.dataset_kwargs)
@@ -233,18 +210,9 @@ def compute_feature_stats_for_dataset(opts, detector_url, detector_kwargs, rel_l
     progress = opts.progress.sub(tag='dataset features', num_items=num_items, rel_lo=rel_lo, rel_hi=rel_hi)
     detector = get_feature_detector(url=detector_url, device=opts.device, num_gpus=opts.num_gpus, rank=opts.rank, verbose=progress.verbose)
 
-    from training.dataset_v2 import Dataset as Dataset2
-
     # Main loop.
     item_subset = [(i * opts.num_gpus + opts.rank) % num_items for i in range((num_items - 1) // opts.num_gpus + 1)]
     for images, _labels in torch.utils.data.DataLoader(dataset=dataset, sampler=item_subset, batch_size=batch_size, **data_loader_kwargs):
-        # print(images.shape)
-
-        if isinstance(dataset, Dataset2):
-            image_chan = dataset.rgb_image_shape[0]
-            images = images[:, :image_chan, :, :]
-            # print(dataset.shape_element_one, images.shape)
-
         if images.shape[1] == 1:
             images = images.repeat([1, 3, 1, 1])
         features = detector(images.to(opts.device), **detector_kwargs)
@@ -259,17 +227,28 @@ def compute_feature_stats_for_dataset(opts, detector_url, detector_kwargs, rel_l
         os.replace(temp_file, cache_file) # atomic
     return stats
 
-# ----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
 
-
-def compute_feature_stats_for_generator(opts, detector_url, detector_kwargs, rel_lo=0, rel_hi=1, batch_size=64, batch_gen=None, **stats_kwargs):
+def compute_feature_stats_for_generator(opts, detector_url, detector_kwargs, rel_lo=0, rel_hi=1, batch_size=64, batch_gen=None, jit=False, **stats_kwargs):
     if batch_gen is None:
         batch_gen = min(batch_size, 4)
     assert batch_size % batch_gen == 0
 
-    # Setup generator and labels.
+    # Setup generator and load labels.
     G = copy.deepcopy(opts.G).eval().requires_grad_(False).to(opts.device)
-    c_iter = iterate_random_labels(opts=opts, batch_size=batch_gen)
+    dataset = dnnlib.util.construct_class_by_name(**opts.dataset_kwargs)
+
+    # Image generation func.
+    def run_generator(z, c):
+        img = G(z=z, c=c, **opts.G_kwargs)
+        img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
+        return img
+
+    # JIT.
+    if jit:
+        z = torch.zeros([batch_gen, G.z_dim], device=opts.device)
+        c = torch.zeros([batch_gen, G.c_dim], device=opts.device)
+        run_generator = torch.jit.trace(run_generator, [z, c], check_trace=False)
 
     # Initialize.
     stats = FeatureStats(**stats_kwargs)
@@ -282,14 +261,9 @@ def compute_feature_stats_for_generator(opts, detector_url, detector_kwargs, rel
         images = []
         for _i in range(batch_size // batch_gen):
             z = torch.randn([batch_gen, G.z_dim], device=opts.device)
-            img = G(z=z, c=next(c_iter), **opts.G_kwargs)
-            if opts.G.img_channels == 2:
-                img = img[:, :1, :, :]
-                # print(img.shape)
-            if opts.G.img_channels == 4:
-                img = img[:, :3, :, :]
-            img = (img * 127.5 + 128).clamp(0, 255).to(torch.uint8)
-            images.append(img)
+            c = [dataset.get_label(np.random.randint(len(dataset))) for _i in range(batch_gen)]
+            c = torch.from_numpy(np.stack(c)).pin_memory().to(opts.device)
+            images.append(run_generator(z, c))
         images = torch.cat(images)
         if images.shape[1] == 1:
             images = images.repeat([1, 3, 1, 1])
@@ -298,4 +272,4 @@ def compute_feature_stats_for_generator(opts, detector_url, detector_kwargs, rel
         progress.update(stats.num_items)
     return stats
 
-# ----------------------------------------------------------------------------
+#----------------------------------------------------------------------------

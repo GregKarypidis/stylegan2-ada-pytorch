@@ -1,12 +1,10 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
 # and any modifications thereto.  Any use, reproduction, disclosure or
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
-
-"""Main API for computing and reporting quality metrics."""
 
 import os
 import time
@@ -20,28 +18,23 @@ from . import kernel_inception_distance
 from . import precision_recall
 from . import perceptual_path_length
 from . import inception_score
-from . import equivariance
 
-# ----------------------------------------------------------------------------
+#----------------------------------------------------------------------------
 
 _metric_dict = dict() # name => fn
-
 
 def register_metric(fn):
     assert callable(fn)
     _metric_dict[fn.__name__] = fn
     return fn
 
-
 def is_valid_metric(metric):
     return metric in _metric_dict
-
 
 def list_valid_metrics():
     return list(_metric_dict.keys())
 
-# ----------------------------------------------------------------------------
-
+#----------------------------------------------------------------------------
 
 def calc_metric(metric, **kwargs): # See metric_utils.MetricOptions for the full list of arguments.
     assert is_valid_metric(metric)
@@ -69,8 +62,7 @@ def calc_metric(metric, **kwargs): # See metric_utils.MetricOptions for the full
         num_gpus        = opts.num_gpus,
     )
 
-# ----------------------------------------------------------------------------
-
+#----------------------------------------------------------------------------
 
 def report_metric(result_dict, run_dir=None, snapshot_pkl=None):
     metric = result_dict['metric']
@@ -84,8 +76,8 @@ def report_metric(result_dict, run_dir=None, snapshot_pkl=None):
         with open(os.path.join(run_dir, f'metric-{metric}.jsonl'), 'at') as f:
             f.write(jsonl_line + '\n')
 
-# ----------------------------------------------------------------------------
-# Recommended metrics.
+#----------------------------------------------------------------------------
+# Primary metrics.
 
 @register_metric
 def fid50k_full(opts):
@@ -111,22 +103,10 @@ def ppl2_wend(opts):
     return dict(ppl2_wend=ppl)
 
 @register_metric
-def eqt50k_int(opts):
-    opts.G_kwargs.update(force_fp32=True)
-    psnr = equivariance.compute_equivariance_metrics(opts, num_samples=50000, batch_size=4, compute_eqt_int=True)
-    return dict(eqt50k_int=psnr)
-
-@register_metric
-def eqt50k_frac(opts):
-    opts.G_kwargs.update(force_fp32=True)
-    psnr = equivariance.compute_equivariance_metrics(opts, num_samples=50000, batch_size=4, compute_eqt_frac=True)
-    return dict(eqt50k_frac=psnr)
-
-@register_metric
-def eqr50k(opts):
-    opts.G_kwargs.update(force_fp32=True)
-    psnr = equivariance.compute_equivariance_metrics(opts, num_samples=50000, batch_size=4, compute_eqr=True)
-    return dict(eqr50k=psnr)
+def is50k(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    mean, std = inception_score.compute_is(opts, num_gen=50000, num_splits=10)
+    return dict(is50k_mean=mean, is50k_std=std)
 
 #----------------------------------------------------------------------------
 # Legacy metrics.
@@ -150,15 +130,23 @@ def pr50k3(opts):
     return dict(pr50k3_precision=precision, pr50k3_recall=recall)
 
 @register_metric
-def is50k(opts):
-    opts.dataset_kwargs.update(max_size=None, xflip=False)
-    mean, std = inception_score.compute_is(opts, num_gen=50000, num_splits=10)
-    return dict(is50k_mean=mean, is50k_std=std)
-
-# ----------------------------------------------------------------------------
+def ppl_zfull(opts):
+    ppl = perceptual_path_length.compute_ppl(opts, num_samples=50000, epsilon=1e-4, space='z', sampling='full', crop=True, batch_size=2)
+    return dict(ppl_zfull=ppl)
 
 @register_metric
-def fid5k_full(opts):
-    opts.dataset_kwargs.update(max_size=None, xflip=False)
-    fid = frechet_inception_distance.compute_fid(opts, max_real=None, num_gen=5000)
-    return dict(fid50k_full=fid)
+def ppl_wfull(opts):
+    ppl = perceptual_path_length.compute_ppl(opts, num_samples=50000, epsilon=1e-4, space='w', sampling='full', crop=True, batch_size=2)
+    return dict(ppl_wfull=ppl)
+
+@register_metric
+def ppl_zend(opts):
+    ppl = perceptual_path_length.compute_ppl(opts, num_samples=50000, epsilon=1e-4, space='z', sampling='end', crop=True, batch_size=2)
+    return dict(ppl_zend=ppl)
+
+@register_metric
+def ppl_wend(opts):
+    ppl = perceptual_path_length.compute_ppl(opts, num_samples=50000, epsilon=1e-4, space='w', sampling='end', crop=True, batch_size=2)
+    return dict(ppl_wend=ppl)
+
+#----------------------------------------------------------------------------

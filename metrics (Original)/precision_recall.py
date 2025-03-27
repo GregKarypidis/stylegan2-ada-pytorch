@@ -1,4 +1,4 @@
-# Copyright (c) 2021, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+﻿# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
 #
 # NVIDIA CORPORATION and its licensors retain all intellectual property
 # and proprietary rights in and to this software, related documentation
@@ -34,7 +34,7 @@ def compute_distances(row_features, col_features, num_gpus, rank, col_batch_size
 #----------------------------------------------------------------------------
 
 def compute_pr(opts, max_real, num_gen, nhood_size, row_batch_size, col_batch_size):
-    detector_url = 'https://api.ngc.nvidia.com/v2/models/nvidia/research/stylegan3/versions/1/files/metrics/vgg16.pkl'
+    detector_url = 'https://nvlabs-fi-cdn.nvidia.com/stylegan2-ada-pytorch/pretrained/metrics/vgg16.pt'
     detector_kwargs = dict(return_features=True)
 
     real_features = metric_utils.compute_feature_stats_for_dataset(

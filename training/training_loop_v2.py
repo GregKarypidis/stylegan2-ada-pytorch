@@ -374,6 +374,16 @@ def training_loop(
         if (rank == 0) and (image_snapshot_ticks is not None) and (done or cur_tick % image_snapshot_ticks == 0):
             images = torch.cat([G_ema(z=z, c=c, noise_mode='const').cpu() for z, c in zip(grid_z, grid_c)]).numpy()
             #todo images and masks
+            print('Exporting sample images...')
+            # print(images.shape, masks.shape)
+            # print(images.shape)
+            if masks is not None:           # Visualizations with Masks
+                spit_dim = int(training_set.rgb_image_shape[0])
+                masks = images[:, spit_dim:]
+                images = images[:, :spit_dim]
+                # images, masks = np.split(images, training_set.rgb_image_shape, axis=1)
+                # print(images.shape, masks.shape)
+                save_image_grid(masks, os.path.join(run_dir, f'fakes_ma{cur_nimg//1000:06d}.png'), drange=[-1,1], grid_size=grid_size)
             save_image_grid(images, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.png'), drange=[-1,1], grid_size=grid_size)
 
         # Save network snapshot.
