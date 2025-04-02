@@ -157,6 +157,7 @@ def training_loop(
         print('Label shape:', training_set.label_shape)
         print()
 
+    # TODO: Change img channels to 4
     # Construct networks.
     if rank == 0:
         print('Constructing networks...')

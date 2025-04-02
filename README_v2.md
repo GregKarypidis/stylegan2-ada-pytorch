@@ -1,5 +1,7 @@
 # StyleGAN2-ADA custom implementation for medical data
 
+./docker_run.sh python3 train_v2.py --outdir=training-runs/ --data=out/hyperkvasir --gpus=1 --cfg=stylegan2_masks_v1 --aug=noaug --metrics=fid5k_full --kimg=2500 --cond=0 --batch=32
+
 ## Requirements
 
 1. Our dataset is required to be modified with the stylegan2_datamaker. This ensures the correct folder organization and format in order for the dataset_tool_v2 to work properly.
