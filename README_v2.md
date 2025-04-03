@@ -1,6 +1,17 @@
 # StyleGAN2-ADA custom implementation for medical data
 
+# training-runs/00007-hyperkvasir-stylegan2_masks_v1-kimg2500-batch32-noaug-hyper_kvasir
+# Latent space size = 512 (default)
 ./docker_run.sh python3 train_v2.py --outdir=training-runs/ --data=out/hyperkvasir --gpus=1 --cfg=stylegan2_masks_v1 --aug=noaug --metrics=fid5k_full --kimg=2500 --cond=0 --batch=32
+
+# training-runs/00009-hyperkvasir-stylegan2_masks_v1-kimg2500-batch32-noaug-hyper_kvasir
+# Latent space size = 256 (due to dataset size, small size)
+./docker_run.sh python3 train_v2.py --outdir=training-runs/ --data=out/hyperkvasir --gpus=1 --cfg=stylegan2_masks_v1 --aug=noaug --metrics=fid5k_full --kimg=2500 --cond=0 --batch=32
+
+# training-runs/00010-hyperkvasir-stylegan2_masks_v1-kimg2500-batch32-noaug-hyper_kvasir
+# Latent space size = 256
+# Loss CHANGED
+./docker_run.sh python3 train_v2.py --outdir=training-runs/ --data=out/hyperkvasir --gpus=1 --cfg=stylegan2_masks_v2 --aug=noaug --metrics=fid5k_full --kimg=2500 --cond=0 --batch=32
 
 ## Requirements
 

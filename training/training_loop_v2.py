@@ -69,7 +69,7 @@ def setup_snapshot_image_grid(training_set, random_seed=0):
         # print(len(images), len(masks))
         # print(images[0].shape, type(images))
         # print(masks[0].shape, type(masks))
-        print(np.stack(images).shape, np.stack(masks).shape)
+        #print(np.stack(images).shape, np.stack(masks).shape)
         return (gw, gh), np.stack(images), np.stack(masks), np.stack(labels)
     return (gw, gh), np.stack(images), None, np.stack(labels)
 
@@ -86,7 +86,7 @@ def save_image_grid(img, fname, drange, grid_size):
 
     gw, gh = grid_size
     _N, C, H, W = img.shape
-    print(img.shape)
+    #print(img.shape)
     img = img.reshape(gh, gw, C, H, W)
     img = img.transpose(0, 3, 1, 4, 2)
     img = img.reshape(gh * H, gw * W, C)
@@ -162,8 +162,15 @@ def training_loop(
     if rank == 0:
         print('Constructing networks...')
     common_kwargs = dict(c_dim=training_set.label_dim, img_resolution=training_set.resolution, img_channels=training_set.num_channels)
+    print(common_kwargs)
+
+    # NOTE: 
+    if loss_kwargs.class_name == 'training.loss_v2.StyleGAN2Loss':
+        common_kwargs_mask = dict(c_dim=training_set.label_dim, img_resolution=training_set.resolution, img_channels=training_set.rgb_image_shape[0])
+    else:
+        common_kwargs_mask = common_kwargs
     G = dnnlib.util.construct_class_by_name(**G_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
-    D = dnnlib.util.construct_class_by_name(**D_kwargs, **common_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
+    D = dnnlib.util.construct_class_by_name(**D_kwargs, **common_kwargs_mask).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
     G_ema = copy.deepcopy(G).eval()
 
     # Resume from existing pickle.
@@ -179,6 +186,10 @@ def training_loop(
         z = torch.empty([batch_gpu, G.z_dim], device=device)
         c = torch.empty([batch_gpu, G.c_dim], device=device)
         img = misc.print_module_summary(G, [z, c])
+        if loss_kwargs.class_name == 'training.loss_v2.StyleGAN2Loss':
+            print('test', img.shape)
+            img, _ = img.split(loss_kwargs.split_dims, dim=1)
+            print('test', img.shape)
         misc.print_module_summary(D, [img, c])
 
     # Setup augmentation.
@@ -207,6 +218,8 @@ def training_loop(
     # Setup training phases.
     if rank == 0:
         print('Setting up training phases...')
+
+    print(loss_kwargs)
     loss = dnnlib.util.construct_class_by_name(device=device, **ddp_modules, **loss_kwargs) # subclass of training.loss.Loss
     phases = []
     for name, module, opt_kwargs, reg_interval in [('G', G, G_opt_kwargs, G_reg_interval), ('D', D, D_opt_kwargs, D_reg_interval)]:

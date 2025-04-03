@@ -107,7 +107,7 @@ def setup_training_loop_kwargs(
     assert isinstance(data, str)
 
     # TODO: different statements for different configs
-    training_set_fun = 'training.dataset_v2.ImageFolderDataset' if cfg == 'stylegan2_masks_v1' else 'training.dataset.ImageFolderDataset'
+    training_set_fun = 'training.dataset_v2.ImageFolderDataset' if cfg in ['stylegan2_masks_v1', 'stylegan2_masks_v2'] else 'training.dataset.ImageFolderDataset'
     args.training_set_kwargs = dnnlib.EasyDict(class_name=training_set_fun, path=data, use_labels=True, max_size=None, xflip=False)
     args.data_loader_kwargs = dnnlib.EasyDict(pin_memory=True, num_workers=3, prefetch_factor=2)
     try:
@@ -159,6 +159,7 @@ def setup_training_loop_kwargs(
         'auto':      dict(ref_gpus=-1, kimg=25000,  mb=-1, mbstd=-1, fmaps=-1,  lrate=-1,     gamma=-1,   ema=-1,  ramp=0.05, map=2), # Populated dynamically based on resolution and GPU count.
         # Our custom configuration
         'stylegan2_masks_v1':  dict(ref_gpus=8,  kimg=25000,  mb=32, mbstd=4,  fmaps=1,   lrate=0.002,  gamma=10,   ema=10,  ramp=None, map=8),
+        'stylegan2_masks_v2':  dict(ref_gpus=8,  kimg=25000,  mb=32, mbstd=4,  fmaps=1,   lrate=0.002,  gamma=10,   ema=10,  ramp=None, map=8),
         'stylegan2': dict(ref_gpus=8,  kimg=25000,  mb=32, mbstd=4,  fmaps=1,   lrate=0.002,  gamma=10,   ema=10,  ramp=None, map=8), # Uses mixed-precision, unlike the original StyleGAN2.
         'paper256':  dict(ref_gpus=8,  kimg=25000,  mb=64, mbstd=8,  fmaps=0.5, lrate=0.0025, gamma=1,    ema=20,  ramp=None, map=8),
         'paper512':  dict(ref_gpus=8,  kimg=25000,  mb=64, mbstd=8,  fmaps=1,   lrate=0.0025, gamma=0.5,  ema=20,  ramp=None, map=8),
@@ -193,7 +194,20 @@ def setup_training_loop_kwargs(
 
     args.G_opt_kwargs = dnnlib.EasyDict(class_name='torch.optim.Adam', lr=spec.lrate, betas=[0,0.99], eps=1e-8)
     args.D_opt_kwargs = dnnlib.EasyDict(class_name='torch.optim.Adam', lr=spec.lrate, betas=[0,0.99], eps=1e-8)
-    args.loss_kwargs = dnnlib.EasyDict(class_name='training.loss.StyleGAN2Loss', r1_gamma=spec.gamma)
+
+    loss_name = 'training.loss_v2.StyleGAN2Loss' if cfg in ['stylegan2_masks_v2'] else 'training.loss.StyleGAN2Loss'
+    args.loss_kwargs = dnnlib.EasyDict(class_name=loss_name, r1_gamma=spec.gamma)
+
+    # print(args.loss_kwargs)
+    if loss_name == 'training.loss_v2.StyleGAN2Loss':
+        # print(args.training_set_kwargs.path, data)
+        if "hyperkvasir" in data:
+            print("Using hyper_kvasir_masked dataset")
+            try:
+                args.loss_kwargs.split_dims = [3, 1] # img channels and mask channels
+            except Exception as e:
+                print(f"Error while setting split_dims: {e}")
+    # print(args.loss_kwargs)
 
     args.total_kimg = spec.kimg
     args.batch_size = spec.mb
@@ -422,7 +436,7 @@ class CommaSeparatedList(click.ParamType):
 @click.option('--mirror', help='Enable dataset x-flips [default: false]', type=bool, metavar='BOOL')
 
 # Base config.
-@click.option('--cfg', help='Base config [default: auto]', type=click.Choice(['auto', 'stylegan2_masks_v1', 'stylegan2', 'paper256', 'paper512', 'paper1024', 'cifar']))
+@click.option('--cfg', help='Base config [default: auto]', type=click.Choice(['auto', 'stylegan2_masks_v1', 'stylegan2_masks_v2', 'stylegan2', 'paper256', 'paper512', 'paper1024', 'cifar']))
 @click.option('--gamma', help='Override R1 gamma', type=float)
 @click.option('--kimg', help='Override training duration', type=int, metavar='INT')
 @click.option('--batch', help='Override batch size', type=int, metavar='INT')
